@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Active recon for authorized lab targets only.
-# Usage: ./active_recon.sh "http://target/login"
+# Usage: ./active_recon.sh "http://target/login" [--top-ports N]
 
 if [[ $# -lt 1 ]]; then
   echo "Usage: $0 <url>"
@@ -25,6 +25,9 @@ require_cmd curl
 require_cmd nmap
 require_cmd sed
 require_cmd tee
+require_cmd tr
+require_cmd sort
+require_cmd paste
 
 if ! [[ "$URL" =~ ^http://|^https:// ]]; then
   echo "Invalid URL. Include scheme (http:// or https://)."
@@ -44,14 +47,40 @@ if [[ -z "${PORT}" ]]; then
   fi
 fi
 
+TOP_PORTS=0
+shift # consume URL; remaining args are optional flags
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --top-ports)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --top-ports"
+        echo "Usage: $0 <url> [--top-ports N]"
+        exit 1
+      fi
+      TOP_PORTS="$2"
+      shift 2
+      ;;
+    *)
+      echo "Unknown option: $1"
+      echo "Usage: $0 <url> [--top-ports N]"
+      exit 1
+      ;;
+  esac
+done
+
+WEB_PORTS="80,443,8080,8000,8888,8443,$PORT"
+# Deduplicate + normalize to a comma list
+WEB_PORTS="$(printf '%s\n' "$WEB_PORTS" | tr ',' '\n' | awk 'NF{print}' | sort -u | paste -sd, -)"
+
 {
   echo "=== Active Recon Report ==="
   echo "Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
   echo "Input URL: $URL"
   echo "Host: $HOST"
-  echo "Port: $PORT"
+  echo "Default Port: $PORT"
+  echo "Web Ports Scan: $WEB_PORTS"
   echo
-  echo "NOTE: For authorized coursework targets only."
+  echo "NOTE: For authorized lab targets only."
   echo "NOTE: This script performs direct probing and scanning."
 } | tee "$OUTDIR/00_summary.txt"
 
@@ -59,9 +88,20 @@ fi
 curl -sS -I "$URL" > "$OUTDIR/20_http_head.txt" 2>&1 || true
 curl -sS -L -o /dev/null -w "final_url=%{url_effective}\nhttp_code=%{http_code}\nremote_ip=%{remote_ip}\nnum_redirects=%{num_redirects}\ntime_total=%{time_total}\n" "$URL" > "$OUTDIR/21_http_metrics.txt"
 
-# Conservative nmap scans for class lab use
-nmap -Pn -sS -T2 -p "$PORT" "$HOST" -oN "$OUTDIR/30_nmap_target_port.txt" >/dev/null
-nmap -Pn -sV -T2 -p "$PORT" "$HOST" -oN "$OUTDIR/31_nmap_service_version.txt" >/dev/null
-nmap -Pn -T2 --top-ports 100 "$HOST" -oN "$OUTDIR/32_nmap_top100.txt" >/dev/null
+# Optional modern HTTP probe (tech detection, favicon hash, JARM, etc.)
+if command -v httpx >/dev/null 2>&1; then
+  httpx -silent -no-color -fr -status-code -title -server -tech-detect -location -favicon -jarm -ct -cl "$URL" \
+    > "$OUTDIR/22_httpx_probe.txt" 2>&1 || true
+else
+  echo "httpx not installed; skipping httpx probe." > "$OUTDIR/22_httpx_probe.txt"
+fi
+
+# Conservative nmap scans (web ports only by default)
+nmap -Pn -sS -T2 -p "$WEB_PORTS" "$HOST" -oN "$OUTDIR/30_nmap_web_ports.txt" >/dev/null
+nmap -Pn -sV --version-light -T2 -p "$WEB_PORTS" "$HOST" -oN "$OUTDIR/31_nmap_web_service_version.txt" >/dev/null
+
+if [[ "$TOP_PORTS" -gt 0 ]]; then
+  nmap -Pn -T2 --top-ports "$TOP_PORTS" "$HOST" -oN "$OUTDIR/32_nmap_top_ports.txt" >/dev/null
+fi
 
 echo "Active recon complete. Output folder: $OUTDIR"

@@ -1,6 +1,6 @@
 # Web Recon Helper Scripts (Lab Use)
 
-These scripts are intended for authorized course lab targets only.
+These scripts are intended for authorized lab targets only.
 
 ## Files
 
@@ -25,4 +25,6 @@ Each run creates a timestamped folder:
 ## Notes
 
 - No brute force, credential stuffing, or exploit modules are used.
-- Active script uses `nmap` with conservative timing (`-T2`).
+- Passive script is header/body + DOM artifact parsing; it uses `httpx` only if installed.
+- Active script uses `nmap` with conservative timing (`-T2`) and defaults to common web ports only.
+- Optional: `./active_recon.sh "http://target.example/login" --top-ports N` for a wider port list (still a recon scan).
