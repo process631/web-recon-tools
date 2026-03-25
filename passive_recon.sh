@@ -25,6 +25,8 @@ require_cmd curl
 require_cmd awk
 require_cmd sed
 require_cmd tee
+require_cmd grep
+require_cmd sort
 
 if ! [[ "$URL" =~ ^http://|^https:// ]]; then
   echo "Invalid URL. Include scheme (http:// or https://)."
@@ -43,7 +45,7 @@ SCHEME="$(printf '%s\n' "$URL" | cut -d':' -f1)"
   echo "Host: $HOST"
   echo "Explicit Port: ${PORT:-none (default for scheme)}"
   echo
-  echo "NOTE: For authorized coursework targets only."
+  echo "NOTE: For authorized lab targets only."
 } | tee "$OUTDIR/00_summary.txt"
 
 # DNS / registrar style metadata (passive-ish)
@@ -65,6 +67,23 @@ fi
 # HTTP page/headers collection without credential attempts
 curl -sS -D "$OUTDIR/20_headers.txt" -o "$OUTDIR/21_body.html" "$URL"
 
+# Security header snapshot (best-effort)
+{
+  echo "=== Security Headers (from response) ==="
+  grep -Ei '^(Strict-Transport-Security:|Content-Security-Policy:|X-Frame-Options:|X-Content-Type-Options:|Referrer-Policy:|Permissions-Policy:|Cross-Origin-Opener-Policy:|Cross-Origin-Embedder-Policy:|Cross-Origin-Resource-Policy:)' "$OUTDIR/20_headers.txt" || true
+  echo
+  echo "=== Cookies Set (names) ==="
+  awk -F'[;=]' '/^Set-Cookie:/ {print $2}' "$OUTDIR/20_headers.txt" | awk 'NF{print}' | sort -u || true
+} > "$OUTDIR/23_security_headers.txt"
+
+# Optional modern HTTP probe (tech detection, favicon hash, JARM, etc.)
+if command -v httpx >/dev/null 2>&1; then
+  httpx -silent -no-color -fr -status-code -title -server -tech-detect -location -favicon -jarm -ct -cl "$URL" \
+    > "$OUTDIR/24_httpx_probe.txt" 2>&1 || true
+else
+  echo "httpx not installed; skipping httpx probe." > "$OUTDIR/24_httpx_probe.txt"
+fi
+
 # Quick extraction of useful passive artifacts
 {
   echo "=== Title ==="
@@ -72,6 +91,10 @@ curl -sS -D "$OUTDIR/20_headers.txt" -o "$OUTDIR/21_body.html" "$URL"
   echo
   echo "=== Form Actions ==="
   grep -Eio '<form[^>]*action="[^"]*"' "$OUTDIR/21_body.html" || true
+  echo
+  echo "=== Hidden Token-Like Inputs (names) ==="
+  grep -Eio '<input[^>]*type=["'\'']hidden["'\''][^>]*name=["'\''][^"'\'']*?(csrf|token|authenticity|_csrf|verification)[^"'\'']*["'\''][^>]*>' "$OUTDIR/21_body.html" \
+    || true
   echo
   echo "=== Script Sources ==="
   grep -Eio '<script[^>]*src="[^"]*"' "$OUTDIR/21_body.html" || true
