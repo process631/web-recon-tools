@@ -1,4 +1,4 @@
-# SEC 335 Recon Scripts (Lab Use)
+# Web Recon Helper Scripts (Lab Use)
 
 These scripts are intended for authorized course lab targets only.
 
