@@ -1,0 +1,98 @@
+================================================================================
+FINDINGS — Reconnaissance & Assessment Notes
+================================================================================
+
+1. Infrastructure & Service Discovery
+--------------------------------------------------------------------------------
+
+WAF presence
+  The target is protected by the 360 Panyun (云防护) Web Application Firewall.
+
+Server stack
+  The backend identifies as Nginx and likely runs a Java environment (indicated
+  by .do actions and JSESSIONID cookies).
+
+Open ports
+  Standard
+    • 80  — HTTP
+    • 443 — HTTPS / SSL
+
+  High ports
+    • 8000, 8080 — Nginx / Java-oriented listeners
+    • 8443 — HTTPS-alt
+
+  UDP (document scan source in appendix)
+    • 53   — DNS
+    • 161  — SNMP
+    • 500  — ISAKMP
+    • 1900 — UPnP
+
+  Filtered / closed
+    • FTP (21), SSH (22), RDP (3389)
+
+
+2. Vulnerability Analysis
+--------------------------------------------------------------------------------
+
+SQL injection (blind)
+  The /adminlogin.do endpoint is vulnerable to Boolean-based SQL injection via
+  the username parameter.
+
+  CAPTCHA (yzm): Bypassing the CAPTCHA may be possible by omitting the yzm
+  parameter from the request (document evidence per lab requirements).
+
+  Initial automation returned "aaaaaaaa" strings, suggesting false positives
+  where the WAF or backend returns HTTP 500 for complex SQL syntax.
+
+Local file inclusion (LFI)
+  A potential LFI was identified in the file= parameter of login.jsp.
+
+Sensitive directory exposure
+  ffuf and dirb scans indicated paths such as /admin, /FCKeditor, /images,
+  /Scripts, and /upload_file (often as redirects; verify with follow-up).
+
+  Access to /.git/config and /.svn/entries returned HTTP 403 Forbidden
+  (X-Panyun-Error-Step: 5). Interpretation: blocking/denial at the edge;
+  correlate with full response headers in evidence appendix.
+
+Insecure session management
+  The JSESSIONID cookie is missing the HttpOnly flag (per nmap http-cookie-flags),
+  which can increase impact if XSS or script-access scenarios exist.
+
+
+3. Application Logic & Behavior
+--------------------------------------------------------------------------------
+
+Panyun error-step behavior
+  Panyun error metadata (e.g., X-Panyun-Error-Step) maps request handling stages.
+  A Step 5 condition has been associated with requests that reach origin-side
+  handling before failing (document with screenshots and request IDs).
+
+Redirection
+  Accessing the root domain may redirect to loadData.do, suggesting a core
+  data-handling entry point.
+
+robots.txt
+  Reported as dynamically influenced / low value for directory enumeration in
+  current testing; capture raw file if 200 OK.
+
+
+4. High-Value Targets for Next Steps (per lab ROE)
+--------------------------------------------------------------------------------
+
+FCKeditor
+  Directory appears in discovery; standard JSP connector path returned WAF
+  “resource not found” style pages. Further checks only if permitted by scope.
+
+upload_file
+  Appeared as redirect / ambiguous in follow-up; document behavior under
+  instructor rules.
+
+WEB-INF
+  /WEB-INF/web.xml and related Java deployment descriptors remain typical
+  mapping targets for authorized Java assessments only if ROE allows.
+
+
+================================================================================
+End of findings draft — attach raw command output and timestamps for submission.
+================================================================================
