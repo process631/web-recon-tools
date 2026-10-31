@@ -1,3 +1,22 @@
+# Timestamped recon output. These directories can contain response bodies,
+# headers, and scan results. Keep them local.
 passive_recon_*/
 active_recon_*/
+
+# Local assessment notes
 findings.txt
+
+# Secrets and local environment
+.env
+.env.*
+*.pem
+*.key
+id_rsa
+id_rsa.*
+*.log
+*.pcap
+
+# Editor and OS files
+.DS_Store
+*.swp
+*~
