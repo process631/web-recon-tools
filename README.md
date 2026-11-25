@@ -1,11 +1,21 @@
-# Web Recon Helper Scripts (Lab Use)
+# Web Recon Tools
 
-These scripts are intended for authorized lab targets only.
+Helper scripts for **passive and active reconnaissance on authorized lab targets only**. Do not run them against systems you do not have permission to test.
 
-## Files
+They collect basic host and HTTP information and write a timestamped report folder. There is no brute force, credential stuffing, or exploit functionality.
 
-- `passive_recon.sh` - Collects passive/low-impact info from a provided URL
-- `active_recon.sh` - Performs active probing and conservative scans against one target
+## Scripts
+
+| Script | What it does |
+|---|---|
+| `passive_recon.sh` | Collects low-impact information from a URL: HTTP headers and body, a security-header snapshot, cookie names, and page artifacts (title, forms, script sources). Uses `dig` and `whois` if they are installed, and `httpx` only if it is installed. |
+| `active_recon.sh` | Probes one target directly: HTTP head/metrics, optional `httpx`, and conservative `nmap` scans (`-T2`) of common web ports (`80,443,8080,8000,8888,8443` plus the URL's port). |
+
+## Requirements
+
+- bash, curl, and standard Unix tools (`awk`, `sed`, `grep`, `tee`, `sort`)
+- `active_recon.sh` also needs `nmap`
+- Optional: `dig`, `whois`, and `httpx` (skipped with a note in the report if they are missing)
 
 ## Usage
 
@@ -15,16 +25,23 @@ chmod +x passive_recon.sh active_recon.sh
 ./active_recon.sh "http://target.example/login"
 ```
 
+The URL must include `http://` or `https://`.
+
+Optional, for a wider (still reconnaissance-only) port scan:
+
+```bash
+./active_recon.sh "http://target.example/login" --top-ports N
+```
+
 ## Output
 
-Each run creates a timestamped folder:
+Each run creates a timestamped folder in the current directory:
 
 - `passive_recon_YYYYMMDD_HHMMSS/`
 - `active_recon_YYYYMMDD_HHMMSS/`
 
-## Notes
+The folder includes a summary plus the collected headers, body, and scan output.
 
-- No brute force, credential stuffing, or exploit modules are used.
-- Passive script is header/body + DOM artifact parsing; it uses `httpx` only if installed.
-- Active script uses `nmap` with conservative timing (`-T2`) and defaults to common web ports only.
-- Optional: `./active_recon.sh "http://target.example/login" --top-ports N` for a wider port list (still a recon scan).
+## License
+
+No license file is included in this repository yet.
